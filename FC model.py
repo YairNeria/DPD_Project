@@ -29,31 +29,32 @@ class Signal_Dataset(Dataset):
 
     def __init__(self,M=3):
         # Load and initialize the data
-        mat = loadmat('for_DPD.mat')
+        mat = loadmat('for_DPD.mat',squeeze_me=True)
         #X_n is the baseband signal TX1_BB
         # Y_n is the recorded distorted signal TX1_SISO 
-        X = mat['TX1_BB'].squeeze()
-        Y = mat['TX1_SISO'].squueze()
+        X = mat['TX1_BB']
+        Y = mat['TX1_SISO']
         self.M= M
 
-        inputs=[]
-        targets=[]
+        inputs,targets =[],[]
 
         #prepare the data to the FC_Model
         for n in range(M-1,len(X)):
-            x_taps = X[n-M:-1]
+            x_taps = X[n-M+1:n+1]
+            #sanity check
             if len(x_taps)<M:
                 continue
+            #interleave real/imag into a length -2M float 32 vec
             input_vec=np.empty(2*M,dtype=np.float32)
-            input_vec[0::2]=np.real(x_taps)
-            input_vec[1::2]=np.imag(x_taps)
+            input_vec[0::2]=x_taps.real
+            input_vec[1::2]=x_taps.imag
             inputs.append(input_vec)
-            targets.append([np.real(Y[n],np.imag(Y[n]))])
+            targets.append([Y[n].real,Y[n].imag])
 
 
         # Decomposition in tensors
-        self.x_data = torch.tensor(np.stack(inputs), dtype=torch.float32)
-        self.y_data = torch.tensor(np.stack(targets), dtype=torch.float32)
+        self.x_data = torch.from_numpy(np.stack(inputs)).float()
+        self.y_data = torch.from_numpy(np.stack(targets)).float()
         self.n_samples = self.x_data.shape[0]
 
     #  From here it is just copy paste from the gitHub of the course
