@@ -38,9 +38,9 @@ class Signal_Dataset(Dataset):
 
         inputs,targets =[],[]
 
-        #prepare the data to the FC_Model
+        #prepare the data to the FC_Model 
         for n in range(M-1,len(X)):
-            x_taps = X[n-M+1:n+1]
+            x_taps = X[n-M+1:n+1] # take M complex numbers
             #sanity check
             if len(x_taps)<M:
                 continue
@@ -60,7 +60,7 @@ class Signal_Dataset(Dataset):
     #  From here it is just copy paste from the gitHub of the course
     # support indexing such that dataset[i] can be used to get i-th sample
     def __getitem__(self, index):
-        return self.x_data[index], self.y_data[index]
+        return self.x_data[index], self.y_data[index] 
 
     # we can call len(dataset) to return the size
     def __len__(self):
@@ -84,9 +84,14 @@ for epoch in range(n_epochs):
     for batch_in, batch_tar in loader:
         outputs=model(batch_in)
         loss=loss_function(outputs,batch_tar)
-    #Backward pass
-    optimizer.zero_grad() #important!
-    loss.backward()
-    optimizer.step()
+        #Backward pass
+        optimizer.zero_grad() #important!
+        loss.backward() #Calculate gradients
+        optimizer.step() # update weights
 
-print(f"Epoch {epoch+1},Loss: {loss.item():.6f}")
+    # 
+    # optimizer.zero_grad() #important!
+    # loss.backward()
+    # optimizer.step()
+    print(f"Epoch {epoch+1},Loss: {loss.item():.6f}")
+
