@@ -49,14 +49,34 @@ dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=seq_len)
 loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 model = PGJanetRNN(hidden_size=hidden_size)
 loss_function = nMSELoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
+optimizer = optim.Adam(model.parameters(), lr=1e-2)
+
+# # Training loop
+# for epoch in range(n_epochs):
+#     for batch_x_abs, batch_theta, batch_targets in loader:
+#         outputs = model(batch_x_abs, batch_theta)
+#         loss = loss_function(outputs, batch_targets)
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
+#     print(f"Epoch {epoch+1}, Loss: {loss.item():.6f}")
+
+# Learning Rate Scheduler (adaptive LR)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(  # <-- Adaptive lr
+    optimizer, mode='min', patience=2, factor=0.5, threshold=1e-4, min_lr=1e-6)  # <-- Adaptive lr
 
 # Training loop
 for epoch in range(n_epochs):
+    epoch_loss = 0.0  # <-- Adaptive lr
     for batch_x_abs, batch_theta, batch_targets in loader:
         outputs = model(batch_x_abs, batch_theta)
         loss = loss_function(outputs, batch_targets)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-    print(f"Epoch {epoch+1}, Loss: {loss.item():.6f}")
+        epoch_loss += loss.item()  # <-- Adaptive lr
+
+    epoch_loss /= len(loader)  # <-- Adaptive lr
+    scheduler.step(epoch_loss)  # <-- Adaptive lr
+
+    print(f"Epoch {epoch+1}, Loss: {epoch_loss:.6f}, LR: {optimizer.param_groups[0]['lr']:.6e}")
