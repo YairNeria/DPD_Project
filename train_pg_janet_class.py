@@ -40,7 +40,7 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
         return self.x_abs_seq[idx].unsqueeze(-1), self.theta_seq[idx].unsqueeze(-1), self.target_seq[idx]
 
 class TrainModel:
-    def __init__(self, seq_len=12, hidden_size=16, n_epochs=20, batch_size=64, mat_path='for_DPD.mat'):
+    def __init__(self, seq_len=12, hidden_size=16, n_epochs=30, batch_size=64, mat_path='for_DPD.mat'):
         self.seq_len = seq_len
         self.hidden_size = hidden_size
         self.n_epochs = n_epochs
@@ -51,9 +51,9 @@ class TrainModel:
         self.loader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
         self.model = PGJanetRNN(hidden_size=hidden_size)
         self.loss_function = nMSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-2)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='min', patience=2, factor=0.5, threshold=1e-4, min_lr=1e-6)
+            self.optimizer, mode='min', patience=2, factor=0.7, threshold=5e-5, min_lr=1e-7)
         self.learning_rates = []
         self.epoch_losses_list = []
 
