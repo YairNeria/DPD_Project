@@ -18,7 +18,8 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
     def __init__(self, mat_path='for_DPD.mat', seq_len=10):
         mat = loadmat(mat_path, squeeze_me=True)
         X = mat['TX1_BB']
-        Y = mat['TX1_SISO']
+        Y = mat['TX1_SISO'] #TODO-CHANGE TO U_IDEAL BUT LATER 
+        
         amplitudes = np.abs(X).astype(np.float32)
         amplitudes /= np.max(amplitudes)  # Normalize to [0, 1]
         phases = np.angle(X).astype(np.float32)

@@ -13,8 +13,8 @@ This script implements the PG-JANET training and integration with Iterative Lear
 as described in Fig. 5 of the referenced article (Digital Predistortion of RF Power Amplifiers With Phase-Gated Recurrent Neural Networks).
 
 Stages:
-1. Pre-train PG-JANET model on the dataset (as before).
-2. ILC Integration: Iteratively update the input to the PA using the trained PG-JANET model and measured PA output.
+1. ILC
+2. PG-JANET to get the u_ilc 
 3. DLA Fine-tuning: Further train the PG-JANET model using the ILC-refined data.
 """
 
