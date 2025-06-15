@@ -171,8 +171,10 @@ def plot_spectrum(sig, label):
     spectrum = np.fft.fftshift(np.fft.fft(sig_conj))
     spectrum_db = 10 * np.log10(np.abs(spectrum) + 1e-12) - 46.3
     smoothed = np.convolve(spectrum_db, np.ones(100)/100, mode='same')
-    freq = np.linspace(-0.2, 0.2, len(sig))
-    plt.plot(freq, smoothed, label=label)
+    freq = np.linspace(-64, 64, len(sig))
+    mask = (freq >= -28) & (freq <= 28)
+    plt.plot(freq[mask], smoothed[mask], label=label)
+    # plt.plot(freq, smoothed, label=label)
 
 # Load the full input and output signals from the .mat file
 import scipy.io
