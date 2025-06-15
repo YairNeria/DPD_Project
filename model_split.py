@@ -172,9 +172,13 @@ def plot_spectrum(sig, label):
     spectrum_db = 10 * np.log10(np.abs(spectrum) + 1e-12) - 46.3
     smoothed = np.convolve(spectrum_db, np.ones(100)/100, mode='same')
     freq = np.linspace(-64, 64, len(sig))
+    
+    # Create a mask to keep only the center of the spectrum
     mask = (freq >= -28) & (freq <= 28)
-    plt.plot(freq[mask], smoothed[mask], label=label)
-    # plt.plot(freq, smoothed, label=label)
+
+    # Plot the smoothed spectrum within the selected frequency range
+    plt.plot(freq[mask], smoothed[mask], label=label) 
+
 
 # Load the full input and output signals from the .mat file
 import scipy.io
