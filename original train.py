@@ -21,8 +21,14 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
         mat = loadmat(mat_path, squeeze_me=True)
         X = mat['TX1_BB']
         Y = mat['TX1_SISO']
+        # X_m = np.mean(X)
+        # X_s = np.std(X)
+        # Y_m = np.mean(X)
+        # Y_s = np.std(Y)
+        # X = (X-X_m)/X_s
+        # Y = (Y-Y_m)/Y_s
         amplitudes = np.abs(X).astype(np.float32)
-        amplitudes /= np.max(amplitudes)  # <-- Normalize to [0, 1]
+        # amplitudes /= np.max(amplitudes)  # <-- Normalize to [0, 1]
         phases = np.angle(X).astype(np.float32)
         targets = np.stack([Y.real, Y.imag], axis=-1).astype(np.float32)
         N = len(amplitudes)
@@ -69,7 +75,7 @@ optimizer = optim.Adam(model.parameters(), lr=1e-2)
 # This scheduler reduces the learning rate when a metric has stopped improving.
 #mode=minimum means we want to minimize the loss
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(  # <-- Adaptive lr
-    optimizer, mode='min', patience=2, factor=0.5, threshold=1e-4, min_lr=1e-6)  # <-- Adaptive lr
+    optimizer, mode='min', patience=1, factor=0.5, threshold=1e-4, min_lr=1e-6)  # <-- Adaptive lr
 # Plot training loss and learning rate per epoch
 
 # Track learning rate and loss per epoch

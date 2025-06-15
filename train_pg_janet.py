@@ -78,7 +78,7 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
         return self.x_abs_seq[idx].unsqueeze(-1), self.theta_seq[idx].unsqueeze(-1), self.target_seq[idx]
 
 # Hyperparameters
-seq_len = 1
+seq_len = 12
 hidden_size = 16
 n_epochs = 20
 batch_size = 64
