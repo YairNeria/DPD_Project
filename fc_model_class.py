@@ -40,7 +40,7 @@ class Signal_Dataset(Dataset):
         return self.x_data[index], self.y_data[index]
     def __len__(self):
         return self.n_samples
-
+#כככ
 class FC_Trainer:
     def __init__(self, dataset, model=None, lr=1e-3, batch_size=64, n_epochs=20):
         self.dataset = dataset
