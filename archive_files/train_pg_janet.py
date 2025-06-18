@@ -139,36 +139,35 @@ torch.save(model.state_dict(), 'pg_janet_rnn.pth')
 import matplotlib.pyplot as plt
 
 
-# # Plot training loss and learning rate per epoch
+# Plot training loss and learning rate per epoch
 
-# # Convert NMSE loss to dB for plotting
-# epoch_losses_db = [10 * np.log10(l) for l in epoch_losses_list]
-# # After training, plot:
-# # Plot training loss per epoch
-# plt.figure()
-# plt.plot(range(1, n_epochs + 1), epoch_losses_db, label='Training Loss (dB)')
-# plt.xlabel('Epoch')
-# plt.ylabel('Loss (dB)')
-# plt.title('Training Loss per Epoch (dB)')
-# plt.grid(True)
-# plt.legend()
-# plt.show()
+# Convert NMSE loss to dB for plotting
+epoch_losses_db = [10 * np.log10(l) for l in epoch_losses_list]
+# After training, plot:
+# Plot training loss per epoch
+plt.figure()
+plt.plot(range(1, n_epochs + 1), epoch_losses_db, label='Training Loss (dB)')
+plt.xlabel('Epoch')
+plt.ylabel('Loss (dB)')
+plt.title('Training Loss per Epoch (dB)')
+plt.grid(True)
+plt.legend()
+plt.show()
 
-# # Plot learning rate per epoch
-# plt.annotate('Normalized input', xy=(0.7, 0.95), xycoords='axes fraction',
-#              fontsize=10, color='green', ha='center', va='center',
-#              bbox=dict(boxstyle='round,pad=0.3', fc='yellow', alpha=0.3))
+plt.annotate('Normalized input', xy=(0.7, 0.95), xycoords='axes fraction',
+             fontsize=10, color='green', ha='center', va='center',
+             bbox=dict(boxstyle='round,pad=0.3', fc='yellow', alpha=0.3))
 
-# df = pd.DataFrame({'epoch': range(1, n_epochs + 1), 'loss_db': epoch_losses_db, 'learning_rate': learning_rates})
-# df.to_csv('loss_epoch.csv', index=False)
-# plt.figure()
-# plt.plot(range(1, n_epochs + 1), learning_rates, label='Learning Rate')
-# plt.xlabel('Epoch')
-# plt.ylabel('Learning Rate')
-# plt.title('Learning Rate per Epoch')
-# plt.grid(True)
-# plt.legend()
-# plt.show()
+df = pd.DataFrame({'epoch': range(1, n_epochs + 1), 'loss_db': epoch_losses_db, 'learning_rate': learning_rates})
+df.to_csv('loss_epoch.csv', index=False)
+plt.figure()
+plt.plot(range(1, n_epochs + 1), learning_rates, label='Learning Rate')
+plt.xlabel('Epoch')
+plt.ylabel('Learning Rate')
+plt.title('Learning Rate per Epoch')
+plt.grid(True)
+plt.legend()
+plt.show()
 
 
 # # === Plot the freq domain ===

@@ -11,7 +11,7 @@ from train_pg_janet_class import PGJanetSequenceDataset, TrainModel
 # -----------------------------
 # Hyperparameters
 # -----------------------------
-seq_len = 12           # Length of each input sequence
+seq_len = 5           # Length of each input sequence
 hidden_size = 20      # Hidden size for the RNN
 n_epochs = 30          # Number of training epochs
 batch_size = 64        # Batch size for DataLoader
@@ -28,6 +28,7 @@ train_set, val_set = random_split(dataset, [n_train, n_val])
 # Create DataLoaders for training and validation
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
+real_loader=DataLoader(dataset, batch_size=1, shuffle=False)
 
 
 
@@ -80,46 +81,49 @@ train_model.train()
 # plt.show()
 # # -----------------------------
 # # Plot: AM/AM characteristics
-# # -----------------------------
-# # Compute input magnitude (x_abs), predicted output magnitude, and real output magnitude
-# x_magnitude_list = []
-# y_pred_magnitude_list = []
-# y_real_magnitude_list = []
+# Compute input magnitude (x_abs), predicted output magnitude, and real output magnitude
+x_magnitude_list = []
+y_pred_magnitude_list = []
+y_real_magnitude_list = []
 
-# with torch.no_grad():
-#     for batch_x_abs, batch_theta, batch_targets in val_loader:
-#         # batch_x_abs: [1, seq_len, 1]
-#         # batch_targets: [1, seq_len, 2]
-#         outputs = train_model.model(batch_x_abs, batch_theta)  # [1, seq_len, 2]
-#         x_magnitude = batch_x_abs.squeeze(0).cpu().numpy().flatten()  # [seq_len]
-#         y_pred = outputs.squeeze(0).cpu().numpy()  # [seq_len, 2]
-#         y_real = batch_targets.squeeze(0).cpu().numpy()  # [seq_len, 2]
-#         y_pred_magnitude = np.sqrt(y_pred[:, 0]**2 + y_pred[:, 1]**2)
-#         y_real_magnitude = np.sqrt(y_real[:, 0]**2 + y_real[:, 1]**2)
-#         x_magnitude_list.append(x_magnitude)
-#         y_pred_magnitude_list.append(y_pred_magnitude)
-#         y_real_magnitude_list.append(y_real_magnitude)
+with torch.no_grad():
+    for batch_x_abs, batch_theta, batch_targets in val_loader:
+        # batch_x_abs: [1, seq_len, 1]
+        # batch_targets: [1, seq_len, 2]
+        outputs = train_model.model(batch_x_abs, batch_theta)  # [1, seq_len, 2]
+        x_magnitude = batch_x_abs.squeeze(0).cpu().numpy().flatten()  # [seq_len]
+        y_pred = outputs.squeeze(0).cpu().numpy()  # [seq_len, 2]
+        y_real = batch_targets.squeeze(0).cpu().numpy()  # [seq_len, 2]
+        y_pred_magnitude = np.sqrt(y_pred[:, 0]**2 + y_pred[:, 1]**2)
+        y_real_magnitude = np.sqrt(y_real[:, 0]**2 + y_real[:, 1]**2)
+        x_magnitude_list.append(x_magnitude)
+        y_pred_magnitude_list.append(y_pred_magnitude)
+        y_real_magnitude_list.append(y_real_magnitude)
 
-# # Concatenate all sequences
-# x_magnitude = np.concatenate(x_magnitude_list, axis=0)
-# y_pred_magnitude = np.concatenate(y_pred_magnitude_list, axis=0)
-# y_real_magnitude = np.concatenate(y_real_magnitude_list, axis=0)
-# # Scatter plot: Predicted output magnitude vs input magnitude (AM/AM)
-# plt.figure(figsize=(8, 6))
-# plt.scatter(x_magnitude, y_pred_magnitude, alpha=0.5, s=5, label='Predicted')
-# plt.scatter(x_magnitude, y_real_magnitude, alpha=0.5, s=5, label='Real')
+# Concatenate all sequences
+x_magnitude = np.concatenate(x_magnitude_list, axis=0)
+x_magnitude = np.abs(x_magnitude)  # Ensure magnitude is non-negative
+y_pred_magnitude = np.concatenate(y_pred_magnitude_list, axis=0)
+y_pred_magnitude = np.abs(y_pred_magnitude)  # Ensure magnitude is non-negative
+y_real_magnitude = np.concatenate(y_real_magnitude_list, axis=0)
+y_real_magnitude = np.abs(y_real_magnitude)  # Ensure magnitude is non-negative
+# -----------------------------
+# Scatter plot: Predicted output magnitude vs input magnitude (AM/AM)
+plt.figure(figsize=(8, 6))
+plt.scatter(x_magnitude, y_pred_magnitude, alpha=0.5, s=5, label='Predicted')
+plt.scatter(x_magnitude, y_real_magnitude, alpha=0.5, s=5, label='Real')
 
-# # Plot ideal linear AM/AM (output = input)
-# x_ideal = np.linspace(x_magnitude.min(), x_magnitude.max(), 200)
-# plt.plot(x_ideal, x_ideal, 'k--', linewidth=2, label='Ideal (Linear)')
+# Plot ideal linear AM/AM (output = input)
+x_ideal = np.linspace(x_magnitude.min(), x_magnitude.max(), 200)
+plt.plot(x_ideal, x_ideal, 'k--', linewidth=2, label='Ideal (Linear)')
 
-# plt.xlabel('Input Magnitude (|x|)')
-# plt.ylabel('Output Magnitude (|y|)')
-# plt.title('AM/AM Characteristics')
-# plt.legend()
-# plt.grid(True)
-# plt.tight_layout()
-# plt.show()
+plt.xlabel('Input Magnitude (|x|)')
+plt.ylabel('Output Magnitude (|y|)')
+plt.title('AM/AM Characteristics')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 
 # -----------------------------
 # Scatter plot: Predicted output phase vs input phase (AM/PM)   
@@ -155,6 +159,8 @@ y_real_phase = np.concatenate(y_real_phase_list, axis=0)
 # Scatter plot: Predicted output phase vs input phase (AM/PM)
 plt.figure(figsize=(8, 6))
 plt.scatter(x_magnitude, y_pred_phase - x_phase, alpha = 0.5, s=5)
+
+
 #========Previous version==========#
 
 # plt.scatter(x_phase, y_real_phase, alpha=0.5, s=5, label='Real')
@@ -192,6 +198,8 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
+
 # -----------------------------
 # Spectrum plot: compare original, distorted, and model output
 # -----------------------------
@@ -207,37 +215,47 @@ def plot_spectrum(sig, label):
 
     # Plot the smoothed spectrum within the selected frequency range
     plt.plot(freq[mask], smoothed[mask], label=label) 
+    # Use real_loader to get the full input and output signals
+    x_abs_list = []
+    theta_list = []
+    target_list = []
 
+    for batch_x_abs, batch_theta, batch_targets in real_loader:
+        x_abs_list.append(batch_x_abs.squeeze(0).cpu().numpy())      # [seq_len, 1]
+        theta_list.append(batch_theta.squeeze(0).cpu().numpy())      # [seq_len, 1]
+        target_list.append(batch_targets.squeeze(0).cpu().numpy())   # [seq_len, 2]
 
-# Load the full input and output signals from the .mat file
-import scipy.io
-mat = scipy.io.loadmat('for_DPD.mat', squeeze_me=True)
-X_full = mat['TX1_BB']  # Complex baseband input
-Y_full = mat['TX1_SISO']  # Distorted output
+    # Concatenate to get the full sequences
+    X_full_abs = np.concatenate(x_abs_list, axis=0).flatten()        # [N]
+    X_full_phase = np.concatenate(theta_list, axis=0).flatten()      # [N]
+    Y_full_np = np.concatenate(target_list, axis=0)                  # [N, 2]
+    Y_full = Y_full_np[:, 0] + 1j * Y_full_np[:, 1]                  # [N]
 
-# PG-JANET model output (predistorted):
-# We'll use the trained model to generate the output for the full input sequence
-# Prepare amplitude and phase for the full input
-X_full_abs = np.abs(X_full).astype(np.float32)
-X_full_abs_norm = X_full_abs / np.max(X_full_abs)  # Normalize as in training
-X_full_phase = np.angle(X_full).astype(np.float32)
+    # Normalize input with mean and std
+    X_mean = X_full_abs.mean()
+    X_std = X_full_abs.std()
+    X_full_abs_norm = (X_full_abs - X_mean) / X_std
 
-# Convert to torch tensors and add batch/seq dims
-X_full_abs_tensor = torch.from_numpy(X_full_abs_norm).unsqueeze(0).unsqueeze(-1)  # [1, N, 1]
-X_full_phase_tensor = torch.from_numpy(X_full_phase).unsqueeze(0).unsqueeze(-1)   # [1, N, 1]
+    # Normalize output using same mean and std as input
+    Y_full_norm_np = (Y_full_np - X_mean) / X_std
+    Y_full_norm = Y_full_norm_np[:, 0] + 1j * Y_full_norm_np[:, 1]
 
-with torch.no_grad():
-    Model_output_full_tensor = train_model.model(X_full_abs_tensor, X_full_phase_tensor)  # [1, N, 2]
-Model_output_full_np = Model_output_full_tensor.squeeze(0).cpu().numpy()  # [N, 2]
-Model_output_full = Model_output_full_np[:, 0] + 1j * Model_output_full_np[:, 1]
+    # Convert to torch tensors and add batch/seq dims
+    X_full_abs_tensor = torch.from_numpy(X_full_abs_norm.astype(np.float32)).unsqueeze(0).unsqueeze(-1)  # [1, N, 1]
+    X_full_phase_tensor = torch.from_numpy(X_full_phase.astype(np.float32)).unsqueeze(0).unsqueeze(-1)   # [1, N, 1]
 
-plt.figure(figsize=(10, 6))
-plot_spectrum(X_full, "Original Input")
-plot_spectrum(Y_full, "PA Output")
-plot_spectrum(Model_output_full, "PG-JANET Output")
-plt.xlabel("Normalized Frequency")
-plt.ylabel("Magnitude (dB)")
-plt.legend()
-plt.title("Frequency Spectrum Comparison")
-plt.tight_layout()
-plt.show()
+    with torch.no_grad():
+        Model_output_full_tensor = train_model.model(X_full_abs_tensor, X_full_phase_tensor)  # [1, N, 2]
+    Model_output_full_np = Model_output_full_tensor.squeeze(0).cpu().numpy()  # [N, 2]
+    Model_output_full = Model_output_full_np[:, 0] + 1j * Model_output_full_np[:, 1]
+
+    plt.figure(figsize=(10, 6))
+    plot_spectrum(X_full_abs_norm * np.exp(1j * X_full_phase), "Original Input (normalized)")
+    plot_spectrum(Y_full_norm, "PA Output (normalized)")
+    plot_spectrum(Model_output_full, "PG-JANET Output")
+    plt.xlabel("Normalized Frequency")
+    plt.ylabel("Magnitude (dB)")
+    plt.legend()
+    plt.title("Frequency Spectrum Comparison")
+    plt.tight_layout()
+    plt.show()
