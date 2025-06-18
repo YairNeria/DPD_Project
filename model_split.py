@@ -40,46 +40,9 @@ print('Starting training using TrainModel class...')
 from train_pg_janet_class import TrainModel
 train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, n_epochs=n_epochs, batch_size=batch_size, mat_path='for_DPD.mat')
 train_model.train()
-# model = train_model.model  # Use the trained model for validation
 
-# # -----------------------------
-# # Validation: get predictions and real values
-# # -----------------------------
-# train_model.model.eval()
-# y_pred_list = []
-# y_real_list = []
-# with torch.no_grad():
-#     for batch_x_abs, batch_theta, batch_targets in val_loader:
-#         # Forward pass for validation
-#         outputs = train_model.model(batch_x_abs, batch_theta)  # [1, seq_len, 2]
-#         y_pred_list.append(outputs.squeeze(0).cpu().numpy())
-#         y_real_list.append(batch_targets.squeeze(0).cpu().numpy())
-
-# # Concatenate all sequences for plotting
-# y_pred = np.concatenate(y_pred_list, axis=0)  # [N_val*seq_len, 2]
-# y_real = np.concatenate(y_real_list, axis=0)  # [N_val*seq_len, 2]
-
-# # -----------------------------
-
-# # Plot real and predicted signals (I and Q)
-# # -----------------------------
-# plt.figure(figsize=(12, 6))
-# # Plot I component
-# plt.subplot(2, 1, 1)
-# plt.plot(y_real[:, 0], label='Real I')
-# plt.plot(y_pred[:, 0], label='Predicted I', alpha=0.7)
-# plt.title('I Component')
-# plt.legend()
-# # Plot Q component
-# plt.subplot(2, 1, 2)
-# plt.plot(y_real[:, 1], label='Real Q')
-# plt.plot(y_pred[:, 1], label='Predicted Q', alpha=0.7)
-# plt.title('Q Component')
-# plt.legend()
-# plt.xlabel('Sample (real timescale)')
-# plt.tight_layout()
-# plt.show()
-# # -----------------------------
+# -----------------------------
+# Evaluation: Compute input magnitude, predicted output magnitude, and real output magnitude    
 # # Plot: AM/AM characteristics
 # Compute input magnitude (x_abs), predicted output magnitude, and real output magnitude
 x_magnitude_list = []
@@ -91,14 +54,14 @@ with torch.no_grad():
         # batch_x_abs: [1, seq_len, 1]
         # batch_targets: [1, seq_len, 2]
         outputs = train_model.model(batch_x_abs, batch_theta)  # [1, seq_len, 2]
-        x_magnitude = batch_x_abs.squeeze(0).cpu().numpy().flatten()  # [seq_len]
-        y_pred = outputs.squeeze(0).cpu().numpy()  # [seq_len, 2]
-        y_real = batch_targets.squeeze(0).cpu().numpy()  # [seq_len, 2]
+        x_magnitude = batch_x_abs.cpu().numpy().reshape(-1)  # [seq_len]
+        y_pred = outputs.cpu().numpy().reshape(-1, 2)        # [seq_len, 2]
+        y_real = batch_targets.cpu().numpy().reshape(-1, 2)  # [seq_len, 2]
         y_pred_magnitude = np.sqrt(y_pred[:, 0]**2 + y_pred[:, 1]**2)
         y_real_magnitude = np.sqrt(y_real[:, 0]**2 + y_real[:, 1]**2)
-        x_magnitude_list.append(x_magnitude)
-        y_pred_magnitude_list.append(y_pred_magnitude)
-        y_real_magnitude_list.append(y_real_magnitude)
+        x_magnitude_list.extend(x_magnitude.tolist())
+        y_pred_magnitude_list.extend(y_pred_magnitude.tolist())
+        y_real_magnitude_list.extend(y_real_magnitude.tolist())
 
 # Concatenate all sequences
 x_magnitude = np.concatenate(x_magnitude_list, axis=0)
@@ -199,63 +162,59 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-
 # -----------------------------
 # Spectrum plot: compare original, distorted, and model output
 # -----------------------------
+
+# 1. Collect the full sequences from the dataset
+x_abs_list = []
+theta_list = []
+target_list = []
+
+for batch_x_abs, batch_theta, batch_targets in real_loader:
+    x_abs_list.append(batch_x_abs.squeeze(0).cpu().numpy())      # [seq_len, 1]
+    theta_list.append(batch_theta.squeeze(0).cpu().numpy())      # [seq_len, 1]
+    target_list.append(batch_targets.squeeze(0).cpu().numpy())   # [seq_len, 2]
+
+X_full_abs = np.concatenate(x_abs_list, axis=0).flatten()        # [N]
+X_full_phase = np.concatenate(theta_list, axis=0).flatten()      # [N]
+Y_full_np = np.concatenate(target_list, axis=0)                  # [N, 2]
+Y_full = Y_full_np[:, 0] + 1j * Y_full_np[:, 1]                  # complex original
+
+# 2. Normalize based on input
+X_mean = X_full_abs.mean()
+X_std = X_full_abs.std()
+X_full_abs_norm = (X_full_abs - X_mean) / X_std
+Y_full_norm_np = (Y_full_np - X_mean) / X_std
+Y_full_norm = Y_full_norm_np[:, 0] + 1j * Y_full_norm_np[:, 1]
+
+# 3. Generate model output from the full normalized input
+X_full_abs_tensor = torch.from_numpy(X_full_abs_norm.astype(np.float32)).unsqueeze(0).unsqueeze(-1)  # [1, N, 1]
+X_full_phase_tensor = torch.from_numpy(X_full_phase.astype(np.float32)).unsqueeze(0).unsqueeze(-1)   # [1, N, 1]
+
+with torch.no_grad():
+    Model_output_full_tensor = train_model.model(X_full_abs_tensor, X_full_phase_tensor)  # [1, N, 2]
+Model_output_full_np = Model_output_full_tensor.squeeze(0).cpu().numpy()  # [N, 2]
+Model_output_full = Model_output_full_np[:, 0] + 1j * Model_output_full_np[:, 1]
+
+# 4. Define a clean plotting function
 def plot_spectrum(sig, label):
-    sig_conj = np.conj(sig)
-    spectrum = np.fft.fftshift(np.fft.fft(sig_conj))
+    spectrum = np.fft.fftshift(np.fft.fft(np.conj(sig)))
     spectrum_db = 10 * np.log10(np.abs(spectrum) + 1e-12) - 46.3
     smoothed = np.convolve(spectrum_db, np.ones(100)/100, mode='same')
     freq = np.linspace(-64, 64, len(sig))
-    
-    # Create a mask to keep only the center of the spectrum
     mask = (freq >= -28) & (freq <= 28)
+    plt.plot(freq[mask], smoothed[mask], label=label)
 
-    # Plot the smoothed spectrum within the selected frequency range
-    plt.plot(freq[mask], smoothed[mask], label=label) 
-    # Use real_loader to get the full input and output signals
-    x_abs_list = []
-    theta_list = []
-    target_list = []
+# 5. Plot all spectra
+plt.figure(figsize=(10, 6))
+plot_spectrum(X_full_abs_norm * np.exp(1j * X_full_phase), "Original Input (normalized)")
+plot_spectrum(Y_full_norm, "PA Output (normalized)")
+plot_spectrum(Model_output_full, "PG-JANET Output")
+plt.xlabel("Normalized Frequency")
+plt.ylabel("Magnitude (dB)")
+plt.legend()
+plt.title("Frequency Spectrum Comparison")
+plt.tight_layout()
+plt.show()
 
-    for batch_x_abs, batch_theta, batch_targets in real_loader:
-        x_abs_list.append(batch_x_abs.squeeze(0).cpu().numpy())      # [seq_len, 1]
-        theta_list.append(batch_theta.squeeze(0).cpu().numpy())      # [seq_len, 1]
-        target_list.append(batch_targets.squeeze(0).cpu().numpy())   # [seq_len, 2]
-
-    # Concatenate to get the full sequences
-    X_full_abs = np.concatenate(x_abs_list, axis=0).flatten()        # [N]
-    X_full_phase = np.concatenate(theta_list, axis=0).flatten()      # [N]
-    Y_full_np = np.concatenate(target_list, axis=0)                  # [N, 2]
-    Y_full = Y_full_np[:, 0] + 1j * Y_full_np[:, 1]                  # [N]
-
-    # Normalize input with mean and std
-    X_mean = X_full_abs.mean()
-    X_std = X_full_abs.std()
-    X_full_abs_norm = (X_full_abs - X_mean) / X_std
-
-    # Normalize output using same mean and std as input
-    Y_full_norm_np = (Y_full_np - X_mean) / X_std
-    Y_full_norm = Y_full_norm_np[:, 0] + 1j * Y_full_norm_np[:, 1]
-
-    # Convert to torch tensors and add batch/seq dims
-    X_full_abs_tensor = torch.from_numpy(X_full_abs_norm.astype(np.float32)).unsqueeze(0).unsqueeze(-1)  # [1, N, 1]
-    X_full_phase_tensor = torch.from_numpy(X_full_phase.astype(np.float32)).unsqueeze(0).unsqueeze(-1)   # [1, N, 1]
-
-    with torch.no_grad():
-        Model_output_full_tensor = train_model.model(X_full_abs_tensor, X_full_phase_tensor)  # [1, N, 2]
-    Model_output_full_np = Model_output_full_tensor.squeeze(0).cpu().numpy()  # [N, 2]
-    Model_output_full = Model_output_full_np[:, 0] + 1j * Model_output_full_np[:, 1]
-
-    plt.figure(figsize=(10, 6))
-    plot_spectrum(X_full_abs_norm * np.exp(1j * X_full_phase), "Original Input (normalized)")
-    plot_spectrum(Y_full_norm, "PA Output (normalized)")
-    plot_spectrum(Model_output_full, "PG-JANET Output")
-    plt.xlabel("Normalized Frequency")
-    plt.ylabel("Magnitude (dB)")
-    plt.legend()
-    plt.title("Frequency Spectrum Comparison")
-    plt.tight_layout()
-    plt.show()

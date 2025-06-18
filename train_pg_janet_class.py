@@ -2,9 +2,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from scipy.io import loadmat
 from pg_janet import PGJanetRNN
+import matplotlib.pyplot as plt
+
 
 class nMSELoss(nn.Module):
     def __init__(self):
@@ -20,6 +22,14 @@ def std_norm(x, mean=None, std=None):
     if std is None:
         std = x.std()
     return (x - mean) / (std + 1e-8)
+
+def max_norm(x, max_val=None):
+    if max_val is None:
+        max_val = np.max(np.abs(x))
+    return x / (max_val + 1e-8) 
+
+    def norm(x, x_m, x_s):
+        return (x - x_m) / (x_s + 1e-8)
 
 
 class PGJanetSequenceDataset(torch.utils.data.Dataset):
@@ -73,8 +83,9 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
             self.target_seq[idx]                   # shape: (seq_len, 2)
         )
 
-class TrainModel:
-    def __init__(self, seq_len=12, hidden_size=16, n_epochs=30, batch_size=64, mat_path='for_DPD.mat', learning_rate=1e-3):
+class TrainModel(nn.Module):
+    def __init__(self, seq_len=3, hidden_size=32, n_epochs=30, batch_size=64, mat_path='for_DPD.mat', learning_rate=5e-3):
+        super(TrainModel, self).__init__()
         self.seq_len = seq_len
         self.hidden_size = hidden_size
         self.n_epochs = n_epochs
@@ -133,6 +144,26 @@ class TrainModel:
         print('Model saved.')
 
 if __name__ == "__main__":
-    trainer = TrainModel()
-    trainer.train()
-    trainer.save_model()
+    # -----------------------------
+    # Load dataset and split into train/validation
+    # -----------------------------
+    val_ratio = 0.2  # 20% for validation
+    # Create the dataset with a sequence length of 3
+    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=3, invert=True)
+    n_val = int(len(dataset) * val_ratio)
+    n_train = len(dataset) - n_val
+    train_set, val_set = random_split(dataset, [n_train, n_val])
+
+    # Create DataLoaders for training and validation
+    train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
+    real_loader=DataLoader(dataset, batch_size=1, shuffle=False)
+    train_model = TrainModel()
+    train_model.train()
+    train_model.save_model('pg_janet_rnn_inverse.pth')
+
+
+
+
+
+
