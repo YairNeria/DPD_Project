@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # -----------------------------
     val_ratio = 0.2  # 20% for validation
     # Create the dataset with a sequence length of 3
-    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=3, invert=True)
+    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=10, invert=False)
     n_val = int(len(dataset) * val_ratio)
     n_train = len(dataset) - n_val
     train_set, val_set = random_split(dataset, [n_train, n_val])
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
     real_loader=DataLoader(dataset, batch_size=1, shuffle=False)
-    train_model = TrainModel()
+    train_model = TrainModel(hidden_size=128)
     train_model.train()
     train_model.save_model('pg_janet_rnn_inverse.pth')
 

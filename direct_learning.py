@@ -44,16 +44,19 @@ with torch.no_grad():
 
 # Denormalize
 y_pred = y_pred_norm * std[1:] + mean[1:]
-y_pred_complex = y_pred[:, -1, 0] + 1j * y_pred[:, -1, 1]
+y_pred_avg = y_pred[:, -3:, :].mean(axis=1)
+y_pred_complex = y_pred_avg[:, 0] + 1j * y_pred_avg[:, 1]
 x_used = X[seq_len:len(y_pred_complex)+seq_len]
+targets_used = Y[seq_len:len(y_pred_complex)+seq_len]
 
-
+x_seq = np.array([X[i:i+seq_len] for i in range(len(X) - seq_len)])
+x_last = x_seq[:, -1]
 # -------------------------------
 # AM/AM Plot
 # -------------------------------
-input_mag = np.abs(X)
-output_mag = np.abs(Y)
-input_mag_pred = np.abs(x_used)
+input_mag = np.abs(x_used)
+output_mag = np.abs(targets_used)
+input_mag_pred = np.abs(x_last)
 output_mag_pred = np.abs(y_pred_complex)
 
 input_mag_norm = input_mag / np.max(input_mag)
@@ -78,8 +81,7 @@ plt.show()
 # -------------------------------
 # --- FIXED AM/PM Section ---
 # Get last inputs to match prediction step
-x_seq = np.array([X[i:i+seq_len] for i in range(len(X) - seq_len)])
-x_last = x_seq[:, -1]
+
 
 # Phase shift = angle(Y) - angle(X_last)
 input_phase = np.angle(X)
@@ -114,3 +116,39 @@ plt.legend()
 plt.tight_layout()
 plt.savefig('pg_janet_am_pm_comparison_fixed.png')
 plt.show()
+
+# -------------------------------
+#spec
+# Plot frequency spectrum of original, distorted, and predicted signals
+from scipy.fft import fft, fftshift
+from scipy.signal import savgol_filter
+
+def plot_spectrum(sig, label, color):
+    sig_conj = np.conj(sig)
+    spectrum = fftshift(fft(sig_conj))
+    spectrum_db = 20 * np.log10(np.abs(spectrum) + 1e-12) - 46.3
+    spectrum_db_smooth = savgol_filter(spectrum_db, 101, 3)  # window length = 101, poly order = 3
+
+    N = len(sig)
+    f = np.linspace(-0.5, 0.5, N)
+    plt.plot(f, spectrum_db_smooth, color=color, label=label, linewidth=2)
+
+# Pad predicted signal to match input length
+predicted_signal = np.zeros_like(X, dtype=np.complex64)
+predicted_signal[seq_len:seq_len + len(y_pred_complex)] = y_pred_complex
+
+plt.figure(figsize=(10, 6))
+plot_spectrum(X, 'Original Input', 'black')
+plot_spectrum(Y, 'PA Output (Distorted)', 'blue')
+plot_spectrum(predicted_signal, 'PG-JANET Output', 'red')
+
+plt.title("Spectrum Comparison (FFT, Smoothed)")
+plt.xlabel("Normalized Frequency")
+plt.ylabel("Magnitude (dB)")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig("pg_janet_spectrum_comparison.png")
+plt.show()
+
+
