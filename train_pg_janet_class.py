@@ -8,6 +8,8 @@ from pg_janet import PGJanetRNN
 import matplotlib.pyplot as plt
 
 
+#TODO - think about normalize x and y independently 
+
 class nMSELoss(nn.Module):
     def __init__(self):
         super().__init__()
@@ -33,7 +35,7 @@ def max_norm(x, max_val=None):
 
 
 class PGJanetSequenceDataset(torch.utils.data.Dataset):
-    def __init__(self, mat_path='for_DPD.mat', seq_len=12, invert=False, Norm_func=std_norm):
+    def __init__(self, mat_path='for_DPD.mat', seq_len=12, invert=False, Norm_func=std_norm, save_stats_path=None):
         # Load data
         mat = loadmat(mat_path, squeeze_me=True)
         if not invert:
@@ -49,13 +51,18 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
 
         # Stack real and imaginary parts of output signal
         targets = np.stack([Y.real, Y.imag], axis=-1).astype(np.float32).reshape(-1, 2)
-
+        #Causes error - need to change to factor 
+        #Change the normalization to the dataset
         # Concatenate input magnitude with target real/imag for shared stats
         combined = np.concatenate([amplitudes, targets], axis=1)
         mean = combined.mean(axis=0)
         std = combined.std(axis=0)
 
-        # Normalize with synchronized mean/std
+        # Save normalization stats if requested
+        if save_stats_path is not None:
+            np.savez(save_stats_path, mean=mean, std=std)
+
+        # Normalize with synchronized mean/s
         amplitudes = std_norm(amplitudes[:, 0], mean=mean[0], std=std[0])       # shape: (N,)
         targets = std_norm(targets, mean=mean[1:], std=std[1:])                 # shape: (N, 2)
 
@@ -84,7 +91,7 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
         )
 
 class TrainModel(nn.Module):
-    def __init__(self, seq_len=3, hidden_size=32, n_epochs=30, batch_size=64, mat_path='for_DPD.mat', learning_rate=5e-3):
+    def __init__(self, seq_len=10, hidden_size=64, n_epochs=30, batch_size=64, mat_path='for_DPD.mat', learning_rate=5e-3, save_stats_path=None):
         super(TrainModel, self).__init__()
         self.seq_len = seq_len
         self.hidden_size = hidden_size
@@ -93,7 +100,7 @@ class TrainModel(nn.Module):
         self.mat_path = mat_path
         self.learning_rate = learning_rate
         print('Loading dataset...')
-        self.dataset = PGJanetSequenceDataset(mat_path, seq_len=seq_len, invert=False)
+        self.dataset = PGJanetSequenceDataset(mat_path, seq_len=seq_len, invert=False, save_stats_path=save_stats_path)
         self.loader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
         self.model = PGJanetRNN(hidden_size=hidden_size)
         self.loss_function = nMSELoss()
@@ -148,8 +155,12 @@ if __name__ == "__main__":
     # Load dataset and split into train/validation
     # -----------------------------
     val_ratio = 0.2  # 20% for validation
-    # Create the dataset with a sequence length of 3
-    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=10, invert=False)
+    seq_len = 10
+    hidden_size = 64
+    # Save normalization stats to file
+    stats_path = 'pg_janet_inverse_norm_stats.npz'
+    # Create the dataset with a sequence length of 10 and save stats
+    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=seq_len, invert=False, save_stats_path=stats_path)
     n_val = int(len(dataset) * val_ratio)
     n_train = len(dataset) - n_val
     train_set, val_set = random_split(dataset, [n_train, n_val])
@@ -157,8 +168,8 @@ if __name__ == "__main__":
     # Create DataLoaders for training and validation
     train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
-    real_loader=DataLoader(dataset, batch_size=1, shuffle=False)
-    train_model = TrainModel(hidden_size=128)
+    real_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+    train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, save_stats_path=stats_path)
     train_model.train()
     train_model.save_model('pg_janet_rnn_inverse.pth')
 

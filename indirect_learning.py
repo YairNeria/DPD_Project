@@ -5,7 +5,9 @@ from scipy.io import loadmat
 from scipy.fft import fft, fftshift
 from scipy.signal import savgol_filter
 from train_pg_janet_class import PGJanetRNN
+from train_pg_janet_class import state_norm
 
+#PG JANET TRAINED ON U_ILC 
 # Load data
 mat = loadmat('for_DPD.mat', squeeze_me=True)
 X = mat['TX1_BB']
@@ -16,33 +18,36 @@ amplitudes = np.abs(Y).astype(np.float32)
 phases = np.angle(Y).astype(np.float32)
 targets = np.stack([X.real, X.imag], axis=-1).astype(np.float32)
 
-# Normalize
-combined = np.concatenate([amplitudes.reshape(-1, 1), targets], axis=1)
-mean = combined.mean(axis=0)
-std = combined.std(axis=0)
+# Use normalization parameters from training
 
-amplitudes_norm = (amplitudes - mean[0]) / (std[0] + 1e-8)
-targets_norm = (targets - mean[1:]) / (std[1:] + 1e-8)
+amplitudes_norm = (amplitudes - state_norm['mean_amp']) / state_norm['std_amp']
+targets_norm = (targets - state_norm['mean_targets']) / state_norm['std_targets']
+mean = np.concatenate([[state_norm['mean_amp']], state_norm['mean_targets']])
+std = np.concatenate([[state_norm['std_amp']], state_norm['std_targets']])
 
 # Prepare sequences
-seq_len = 3
+seq_len = 10
 x_abs_seq, theta_seq = [], []
 for i in range(len(amplitudes_norm) - seq_len):
     x_abs_seq.append(amplitudes_norm[i:i+seq_len])
     theta_seq.append(phases[i:i+seq_len])
 
-x_abs_seq = torch.tensor(x_abs_seq).unsqueeze(-1).float()
-theta_seq = torch.tensor(theta_seq).unsqueeze(-1).float()
+# Ensure arrays are proper shape before converting to torch tensors
+x_abs_seq = np.array(x_abs_seq)  # shape (N, seq_len)
+theta_seq = np.array(theta_seq)  # shape (N, seq_len)
+x_abs_seq = torch.tensor(x_abs_seq).unsqueeze(-1).float()  # shape (N, seq_len, 1)
+theta_seq = torch.tensor(theta_seq).unsqueeze(-1).float()  # shape (N, seq_len, 1)
 
 
 # Load inverse-trained PG-JANET model
-model = PGJanetRNN(hidden_size=32)
+model = PGJanetRNN(hidden_size=64)
 model.load_state_dict(torch.load("pg_janet_rnn_inverse.pth", map_location=torch.device('cpu')))
 model.eval()
 
 # Predict
 with torch.no_grad():
     y_pred_norm = model(x_abs_seq, theta_seq).numpy()
+    #it is actually x because we are predicting the original signal from the distorted one
 
 # Denormalize
 y_pred = y_pred_norm * std[1:] + mean[1:]
@@ -114,6 +119,8 @@ plt.show()
 # -------------------------------
 # Spectrum Plot
 # -------------------------------
+# todo - display from -90 to 10 dB and not any lower 
+
 def plot_spectrum(sig, label, color):
     sig_conj = np.conj(sig)
     spectrum = fftshift(fft(sig_conj))
@@ -123,7 +130,7 @@ def plot_spectrum(sig, label, color):
     f = np.linspace(-0.5, 0.5, N)
     plt.plot(f, spectrum_db_smooth, color=color, label=label, linewidth=2)
 
-predicted_signal = np.zeros_like(X, dtype=np.complex64)
+predicted_signal = np.zeros_like(Y, dtype=np.complex64)
 predicted_signal[seq_len:seq_len + len(y_pred_complex)] = y_pred_complex
 
 plt.figure(figsize=(10, 6))
