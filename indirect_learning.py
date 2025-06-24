@@ -4,8 +4,8 @@ import torch
 from scipy.io import loadmat
 from scipy.fft import fft, fftshift
 from scipy.signal import savgol_filter
-from train_pg_janet_class import PGJanetRNN
-from train_pg_janet_class import state_norm
+from fixed_PG_JANET_inverse_training import PGJanetRNN, max_norm
+
 
 #PG JANET TRAINED ON U_ILC 
 # Load data

@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import matplotlib.pyplot as plt
-from train_pg_janet_class import PGJanetSequenceDataset, TrainModel
+from archive_files.train_pg_janet_class import PGJanetSequenceDataset, TrainModel
 
 # -----------------------------
 # Hyperparameters
@@ -37,7 +37,7 @@ real_loader=DataLoader(dataset, batch_size=1, shuffle=False)
 # -----------------------------
 print('Starting training using TrainModel class...')
 # Create a TrainModel instance with the same hyperparameters and training set
-from train_pg_janet_class import TrainModel
+from archive_files.train_pg_janet_class import TrainModel
 train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, n_epochs=n_epochs, batch_size=batch_size, mat_path='for_DPD.mat')
 train_model.train()
 

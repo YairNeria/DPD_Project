@@ -21,7 +21,9 @@ class PGJanetCell(nn.Module):
         self.candidate = nn.Linear(hidden_size + hidden_size, hidden_size)
         
         # Output layer
-        self.output_layer = nn.Linear(hidden_size, input_size)  # For I/Q output
+        output_size = 2  # For I/Q
+        self.output_layer = nn.Linear(hidden_size, output_size)
+        # Note: output_size can be adjusted if you want to output I/Q separately
 
     def forward(self, h_prev, x_abs, cos_theta, sin_theta):
         # Concatenate hidden state with input feature for each gate
@@ -57,9 +59,14 @@ class PGJanetRNN(nn.Module):
 
     def forward(self, x_abs, theta):
         '''
-        x_abs: [batch, seq_len, 1]
-        theta: [batch, seq_len, 1]
+        x_abs: [batch, seq_len] or [batch, seq_len, 1]
+        theta: [batch, seq_len] or [batch, seq_len, 1]
         '''
+        # If input is 2D, add feature dimension
+        if x_abs.dim() == 2:
+            x_abs = x_abs.unsqueeze(-1)
+        if theta.dim() == 2:
+            theta = theta.unsqueeze(-1)
         batch_size, seq_len, _ = x_abs.shape
         h = torch.zeros(batch_size, self.hidden_size, device=x_abs.device)
         outputs = []

@@ -44,27 +44,29 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
         else:
             X = mat['TX1_SISO']   # Distorted signal
             Y = mat['TX1_BB']     # Original signal
-
+        self.norm_func = Norm_func  # Normalization function
         # Extract amplitude and phase from input signal
         amplitudes = np.abs(X).astype(np.float32).reshape(-1, 1)
+        amplitudes = self.norm_func(amplitudes)  # Normalize input amplitude
         phases = np.angle(X).astype(np.float32)
 
         # Stack real and imaginary parts of output signal
         targets = np.stack([Y.real, Y.imag], axis=-1).astype(np.float32).reshape(-1, 2)
-        #Causes error - need to change to factor 
-        #Change the normalization to the dataset
-        # Concatenate input magnitude with target real/imag for shared stats
-        combined = np.concatenate([amplitudes, targets], axis=1)
-        mean = combined.mean(axis=0)
-        std = combined.std(axis=0)
 
-        # Save normalization stats if requested
-        if save_stats_path is not None:
-            np.savez(save_stats_path, mean=mean, std=std)
+        # Normalize target amplitude (magnitude of target complex signal) separately
+        target_complex = targets[..., 0] + 1j * targets[..., 1]
+        target_amp = np.abs(target_complex)
+        target_amp = self.norm_func(target_amp)  # Normalize target amplitude
+        #build the target signal with the now normalized amplitude and same phase 
+        target_phase = np.angle(target_complex)
+        targets = np.stack([target_amp * np.cos(target_phase), target_amp * np.sin(target_phase)], axis=-1) 
+        
+        # Store means and stds for later use (e.g., for denormalization in evaluation)
+        self.amp_mean = amplitudes.mean()
+        self.amp_std = amplitudes.std()
+        self.target_amp_mean = target_amp.mean()
+        self.target_amp_std = target_amp.std()
 
-        # Normalize with synchronized mean/s
-        amplitudes = std_norm(amplitudes[:, 0], mean=mean[0], std=std[0])       # shape: (N,)
-        targets = std_norm(targets, mean=mean[1:], std=std[1:])                 # shape: (N, 2)
 
         N = len(amplitudes)
         self.x_abs_seq = []
@@ -85,9 +87,9 @@ class PGJanetSequenceDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         return (
-            self.x_abs_seq[idx].unsqueeze(-1),     # shape: (seq_len, 1)
-            self.theta_seq[idx].unsqueeze(-1),     # shape: (seq_len, 1)
-            self.target_seq[idx]                   # shape: (seq_len, 2)
+            self.x_abs_seq[idx],     # shape: (seq_len, 1)
+            self.theta_seq[idx],     # shape: (seq_len, 1)
+            self.target_seq[idx]     # shape: (seq_len, 2)
         )
 
 class TrainModel(nn.Module):
@@ -99,38 +101,58 @@ class TrainModel(nn.Module):
         self.batch_size = batch_size
         self.mat_path = mat_path
         self.learning_rate = learning_rate
+
+        # Set device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         print('Loading dataset...')
-        self.dataset = PGJanetSequenceDataset(mat_path, seq_len=seq_len, invert=False, save_stats_path=save_stats_path)
+        self.dataset = PGJanetSequenceDataset(mat_path, seq_len=seq_len, invert=False, Norm_func=max_norm, save_stats_path=save_stats_path)
         self.loader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
-        self.model = PGJanetRNN(hidden_size=hidden_size)
+
+        # Model + optimizer
+        self.model = PGJanetRNN(hidden_size=hidden_size).to(self.device)
         self.loss_function = nMSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        #scheduler for Learning rate
+
+        # Learning rate scheduler
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, mode='min', patience=1, factor=0.7, threshold=1e-4, min_lr=1e-7)
+
         self.learning_rates = []
         self.epoch_losses_list = []
 
     def train(self):
         print('Starting training...')
-        
+
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
             for batch_x_abs, batch_theta, batch_targets in self.loader:
+                batch_x_abs = batch_x_abs.to(self.device)
+                batch_theta = batch_theta.to(self.device)
+                batch_targets = batch_targets.to(self.device)
+
+                # Squeeze last dimension to get (batch, seq_len) before model
+                batch_x_abs = batch_x_abs.squeeze(-1)
+                batch_theta = batch_theta.squeeze(-1)
                 outputs = self.model(batch_x_abs, batch_theta)
                 loss = self.loss_function(outputs, batch_targets)
+
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+
                 epoch_loss += loss.item()
+
             epoch_loss /= len(self.loader)
             self.scheduler.step(epoch_loss)
             self.learning_rates.append(self.optimizer.param_groups[0]['lr'])
             self.epoch_losses_list.append(epoch_loss)
+
             print(f"Epoch {epoch+1}, Loss: {epoch_loss:.6f}, LR: {self.optimizer.param_groups[0]['lr']:.6e}")
+
         print('Training complete.')
+
         # Plot the loss (in dB) and learning rate in each epoch
-        import matplotlib.pyplot as plt
         loss_db = 10 * np.log10(np.array(self.epoch_losses_list) + 1e-12)
         fig, ax1 = plt.subplots()
         ax1.plot(loss_db, 'b-', label='Loss (dB)')
@@ -143,7 +165,6 @@ class TrainModel(nn.Module):
         fig.tight_layout()
         plt.show()
         fig.savefig('epoch_loss.png')
-        
 
     def save_model(self, path='pg_janet_rnn.pth'):
         print(f'Saving model to {path}...')
@@ -154,13 +175,12 @@ if __name__ == "__main__":
     # -----------------------------
     # Load dataset and split into train/validation
     # -----------------------------
-    val_ratio = 0.2  # 20% for validation
+    val_ratio = 0.25  # 25% for validation
     seq_len = 10
     hidden_size = 64
-    # Save normalization stats to file
-    stats_path = 'pg_janet_inverse_norm_stats.npz'
+    stats_path = 'pg_janet_stats.npz'  # Path to save normalization statistics
     # Create the dataset with a sequence length of 10 and save stats
-    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=seq_len, invert=False, save_stats_path=stats_path)
+    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=seq_len, invert=False, Norm_func=max_norm, save_stats_path=stats_path)
     n_val = int(len(dataset) * val_ratio)
     n_train = len(dataset) - n_val
     train_set, val_set = random_split(dataset, [n_train, n_val])
@@ -171,7 +191,7 @@ if __name__ == "__main__":
     real_loader = DataLoader(dataset, batch_size=1, shuffle=False)
     train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, save_stats_path=stats_path)
     train_model.train()
-    train_model.save_model('pg_janet_rnn_inverse.pth')
+    train_model.save_model('pg_janet_rnn_max.pth')
 
 
 
