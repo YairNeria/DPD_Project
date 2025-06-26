@@ -4,11 +4,11 @@ import torch
 from scipy.io import loadmat
 from fixed_PG_JANET_training import PGJanetRNN, max_norm
 
-# --- Load and preprocess data (inverse model: SISO -> BB) ---
+# --- Load and preprocess data (direct model: BB -> SISO) ---
 mat_path = 'for_DPD.mat'
 mat = loadmat(mat_path, squeeze_me=True)
-X = mat['TX1_SISO']  # Distorted input
-Y = mat['TX1_BB']    # Clean target
+X = mat['TX1_BB']  # Clean input
+Y = mat['TX1_SISO']  # Distorted output
 
 x_abs = np.abs(X).astype(np.float32)
 x_theta = np.angle(X).astype(np.float32)
@@ -39,10 +39,10 @@ x_abs_seq_torch = torch.from_numpy(x_abs_seq).float()
 x_theta_seq_torch = torch.from_numpy(x_theta_seq).float()
 targets_seq_torch = torch.from_numpy(targets_seq).float()
 
-# --- Load inverse model ---
+# --- Load direct model ---
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = PGJanetRNN(hidden_size=64).to(device)
-model.load_state_dict(torch.load("pg_janet_inverse.pth", map_location=device))
+model.load_state_dict(torch.load("pg_janet_rnn_max.pth", map_location=device))
 model.eval()
 
 x_abs_seq_torch = x_abs_seq_torch.to(device)
@@ -65,15 +65,15 @@ y_pred_plot = y_pred_magnitude * y_abs_max
 y_real_plot = y_real_magnitude * y_abs_max
 
 plt.figure(figsize=(8, 6))
-plt.scatter(x_abs_plot, y_real_plot, s=1, color='blue', label='Target (Clean)')
-plt.scatter(x_abs_plot, y_pred_plot, s=1, color='red', label='Inverse PG-JANET')
-plt.xlabel("Input Magnitude (Distorted)")
-plt.ylabel("Output Magnitude (Reconstructed)")
-plt.title("AM/AM Comparison: Target vs Inverse PG-JANET")
+plt.scatter(x_abs_plot, y_real_plot, s=1, color='blue', label='Original (No DPD)')
+plt.scatter(x_abs_plot, y_pred_plot, s=1, color='red', label='With PG-JANET')
+plt.xlabel("Input Magnitude")
+plt.ylabel("Output Magnitude")
+plt.title("AM/AM Comparison: Original vs PG-JANET (Direct, Denormalized)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig('inverse_pg_janet_am_am_comparison.png')
+plt.savefig('pg_janet_am_am_comparison.png')
 plt.show()
 
 # --- AM/PM ---
@@ -111,15 +111,15 @@ am_pm_real -= center
 am_pm_pred -= center
 
 plt.figure(figsize=(8, 6))
-plt.scatter(x_magnitude, am_pm_real, s=1, color='blue', label='Target (Clean)')
-plt.scatter(x_magnitude, am_pm_pred, s=1, color='red', label='Inverse PG-JANET')
-plt.xlabel("Input Magnitude (Distorted)")
+plt.scatter(x_magnitude, am_pm_real, s=1, color='blue', label='Original (No DPD)')
+plt.scatter(x_magnitude, am_pm_pred, s=1, color='red', label='With PG-JANET')
+plt.xlabel("Input Magnitude")
 plt.ylabel("Phase Shift (radians)")
-plt.title("AM/PM Comparison: Target vs Inverse PG-JANET")
+plt.title("AM/PM Comparison: Original vs PG-JANET (Per-sequence unwrap)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig("inverse_pg_janet_am_pm_comparison.png")
+plt.savefig("pg_janet_am_pm_fixed_per_sequence.png")
 plt.show()
 
 # --- Spectrum Plot ---
@@ -139,14 +139,14 @@ def plot_spectrum(sig, label, color):
     plt.plot(f, spectrum_db_smooth, color=color, label=label, linewidth=2)
 
 plt.figure(figsize=(10, 6))
-plot_spectrum(x_abs_flat * np.exp(1j * x_theta_flat), 'Distorted Input', 'black')
-plot_spectrum(real_signal, 'Target (Clean)', 'blue')
-plot_spectrum(predicted_signal, 'Inverse PG-JANET Output', 'red')
-plt.title("Spectrum Comparison (FFT, Smoothed, Inverse)")
+plot_spectrum(x_abs_flat * np.exp(1j * x_theta_flat), 'Original Input', 'black')
+plot_spectrum(real_signal, 'PA Output', 'blue')
+plot_spectrum(predicted_signal, 'PG-JANET Output', 'red')
+plt.title("Spectrum Comparison (FFT, Smoothed, Direct)")
 plt.xlabel("Normalized Frequency")
 plt.ylabel("Magnitude (dB)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig("inverse_pg_janet_spectrum_comparison.png")
+plt.savefig("pg_janet_spectrum_comparison.png")
 plt.show()

@@ -61,6 +61,8 @@ class PGJanetSequenceDataset(Dataset):
         self.target_seq = []
 
         N = len(x_abs)
+        #todo - maybe later try independent sequence appending
+        
         for i in range(N - seq_len):
             self.x_abs_seq.append(x_abs[i:i+seq_len])
             self.theta_seq.append(x_theta[i:i+seq_len])
