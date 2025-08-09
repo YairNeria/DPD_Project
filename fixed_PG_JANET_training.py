@@ -31,16 +31,16 @@ def std_norm(x, mean=None, std=None):
     return (x - mean) / (std + 1e-8)
 
 class PGJanetSequenceDataset(Dataset):
-    def __init__(self, mat_path='for_DPD.mat', seq_len=10, invert=False, norm_func=max_norm):
+    def __init__(self, mat_path='U_and_U_ideal_for_pjanet.mat', seq_len=10, invert=False, norm_func=max_norm):
         # Load .mat file
         mat = loadmat(mat_path, squeeze_me=True)
         # Choose signal direction (normal or inverted)
         if not invert:
-            X = mat['TX1_BB']
-            Y = mat['TX1_SISO']
+            X = mat['u']
+            Y = mat['u_ideal']
         else:
-            X = mat['TX1_SISO']
-            Y = mat['TX1_BB']
+            X = mat['u_ideal']
+            Y = mat['u']
 
         x_abs = np.abs(X).astype(np.float32).reshape(-1, 1)
         x_theta = np.angle(X).astype(np.float32)
@@ -81,7 +81,7 @@ class PGJanetSequenceDataset(Dataset):
         )
 
 class TrainModel(nn.Module):
-    def __init__(self, seq_len=10, hidden_size=64, n_epochs=30, batch_size=64, mat_path='for_DPD.mat', learning_rate=5e-3, invert=False, norm_func=max_norm):
+    def __init__(self, seq_len=10, hidden_size=64, n_epochs=30, batch_size=64, mat_path='U_and_U_ideal_for_pjanet.mat', learning_rate=5e-3, invert=False, norm_func=max_norm):
         super(TrainModel, self).__init__()
         self.seq_len = seq_len
         self.hidden_size = hidden_size
@@ -185,12 +185,12 @@ if __name__ == "__main__":
     # Load dataset and split into train/validation
     # -----------------------------
     val_ratio = 0.25  # 25% for validation
-    seq_len = 10
-    hidden_size = 64
+    seq_len = 16
+    hidden_size = 32
     stats_path = 'pg_janet_stats.npz'
 
         # Load dataset (TX1_BB -> TX1_SISO mapping by default)
-    dataset = PGJanetSequenceDataset('for_DPD.mat', seq_len=seq_len, invert=False, norm_func=max_norm)
+    dataset = PGJanetSequenceDataset( seq_len=seq_len, invert=False, norm_func=max_norm)
     n_val = int(len(dataset) * val_ratio)
     n_train = len(dataset) - n_val
     train_set, val_set = random_split(dataset, [n_train, n_val])
@@ -200,6 +200,6 @@ if __name__ == "__main__":
     real_loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
         # Initialize and train the model with configuration options
-    train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, mat_path='for_DPD.mat', invert=False, norm_func=max_norm)
+    train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, mat_path='U_and_U_ideal_for_pjanet.mat', invert=False, norm_func=max_norm)
     train_model.train()
-    train_model.save_model('pg_janet_rnn_max.pth')
+    train_model.save_model('pg_janet_rnn_ilc_direct.pth')

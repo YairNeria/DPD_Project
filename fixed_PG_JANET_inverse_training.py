@@ -169,8 +169,8 @@ class TrainModel(nn.Module):
         print('Model saved.')
 
 if __name__ == "__main__":
-    seq_len = 10
-    hidden_size = 64
+    seq_len = 16
+    hidden_size = 32
     train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, mat_path='for_DPD.mat', invert=True, norm_func=max_norm)
     train_model.train()
     train_model.save_model('pg_janet_inverse.pth')
