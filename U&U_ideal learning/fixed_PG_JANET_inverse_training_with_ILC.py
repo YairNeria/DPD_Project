@@ -171,6 +171,6 @@ class TrainModel(nn.Module):
 if __name__ == "__main__":
     seq_len = 10
     hidden_size = 64
-    train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, mat_path='U_and_U_ideal_for_pjanet.mat', invert=True, norm_func=max_norm)
+    train_model = TrainModel(seq_len=seq_len, hidden_size=hidden_size, mat_path='U_and_U_ideal_for_pjanet.mat', invert=False, norm_func=max_norm)
     train_model.train()
     train_model.save_model('pg_janet_inverse_ILC.pth')
