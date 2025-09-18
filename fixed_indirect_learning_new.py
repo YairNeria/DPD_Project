@@ -70,8 +70,8 @@ mat = loadmat(mat_path, squeeze_me=True)
 # Indirect learning setting:
 # X = original (clean) input; Y = distorted target (what PA produced)
 try:
-    X = mat['sig_out']     # distorted baseband (Y)
-    Y = mat['sig_in']    # complex clean baseband (X)
+    X = mat['sig_in']     # distorted baseband (Y)
+    Y = mat['sig_out']    # complex clean baseband (X)
 except KeyError as e:
     raise KeyError(
         f"Missing expected keys in {mat_path}: {e}. "
@@ -119,7 +119,7 @@ targets_seq_t = torch.from_numpy(targets_seq_np).float()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = PGJanetRNN(hidden_size=32).to(device)
 
-ckpt_path = "pg_janet_inverse_global_rms.pth"
+ckpt_path = "pg_janet_forward_global_rms_inverse.pth"
 if not os.path.exists(ckpt_path):
     raise FileNotFoundError(
         f"Checkpoint '{ckpt_path}' not found. Make sure you trained & saved with global RMS."

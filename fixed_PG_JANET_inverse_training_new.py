@@ -29,7 +29,7 @@ def compute_global_rms(arr: np.ndarray, epsilon: float = 1e-8) -> float:
 def max_norm(x, max_val=None):
     if max_val is None:
         max_val = np.max(np.abs(x))
-    return x / (max_val + 1e-8)
+    return x 
 
 def std_norm(x, mean=None, std=None):
     if mean is None:
@@ -109,7 +109,7 @@ class PGJanetSequenceDataset(Dataset):
 # -----------------------------
 class TrainModel(nn.Module):
     def __init__(self, seq_len=10, hidden_size=64, n_epochs=30, batch_size=64,
-                 mat_path='for_DPD.mat', learning_rate=1e-3, invert=True):
+                 mat_path='for_DPD.mat', learning_rate=1e-2, invert=True):
         super(TrainModel, self).__init__()
         self.seq_len = seq_len
         self.hidden_size = hidden_size
@@ -208,12 +208,12 @@ class TrainModel(nn.Module):
         print('Model saved.')
 
 if __name__ == "__main__":
-    seq_len = 10
+    seq_len = 16
     hidden_size = 32
     train_model = TrainModel(seq_len=seq_len,
                              hidden_size=hidden_size,
-                             mat_path='DPD_signal.mat',
+                             mat_path='DPD_signal (1).mat',
                              invert=False)
     train_model.train()
-    train_model.save_model('pg_janet_forward_global_rms.pth')
+    train_model.save_model('pg_janet_forward_global_rms_new.pth')
 # -----------------------------
